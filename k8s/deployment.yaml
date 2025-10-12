@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sentiment-api
+spec:
+  selector:
+    matchLabels:
+      app: sentiment-api
+  template:
+    metadata:
+      labels:
+        app: sentiment-api
+    spec:
+      containers:
+      - name: sentiment-api
+        image: khenchbishkhongorzul/ml-sentiment-analysis-api:latest  # you can use your image instead
+        ports:
+        - containerPort: 8000

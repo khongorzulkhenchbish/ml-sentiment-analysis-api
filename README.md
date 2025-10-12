@@ -1,5 +1,3 @@
-# ml-sentiment-analysis-api
-
 # Sentiment Analysis API
 
 A FastAPI-based REST API that performs sentiment analysis on text using a pre-trained DistilBERT model from Hugging Face.
@@ -149,6 +147,119 @@ deactivate
 └── README.md
 ```
 
+## Kubernetes Deployment
+
+### Prerequisites
+
+- **Minikube**: Local Kubernetes cluster
+  - [Install Minikube](https://minikube.sigs.k8s.io/docs/start/)
+- **kubectl**: Kubernetes command-line tool
+  - Usually installed with Minikube or [install separately](https://kubernetes.io/docs/tasks/tools/)
+
+### Setup Local Kubernetes Cluster
+
+```bash
+# Start Minikube
+minikube start
+
+# Verify cluster is running
+kubectl cluster-info
+```
+
+### Deploy to Kubernetes
+
+The application uses two Kubernetes manifests located in the `k8s/` directory:
+- `deployment.yaml` - Defines the deployment and replica configuration
+- `service.yaml` - Exposes the application via NodePort
+
+```bash
+# Apply the deployment
+kubectl apply -f k8s/deployment.yaml
+
+# Apply the service
+kubectl apply -f k8s/service.yaml
+
+# Verify deployment
+kubectl get deployments
+kubectl get pods
+kubectl get services
+```
+
+### Access the Application
+
+```bash
+# List all services
+minikube service list
+
+# Get the service URL
+minikube service sentiment-api-service --url
+```
+
+This will output a URL like `http://127.0.0.1:55610`. Use this URL to access your API.
+
+### Test the Kubernetes Deployment
+
+```bash
+# Get the service URL
+SERVICE_URL=$(minikube service sentiment-api-service --url)
+
+# Test the API
+curl -X POST "$SERVICE_URL/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "This is amazing!"}'
+```
+
+You can also use **Postman** or any HTTP client with the URL from `minikube service`.
+
+### Scaling
+
+Scale the deployment to handle more traffic:
+
+```bash
+# Scale up to 3 replicas
+kubectl scale deployment sentiment-api --replicas=3
+
+# Verify pods are running
+kubectl get pods
+
+# Scale back down to 1 replica
+kubectl scale deployment sentiment-api --replicas=1
+```
+
+### Useful Kubernetes Commands
+
+```bash
+# View pod logs
+kubectl logs <pod-name>
+
+# Describe a pod (useful for troubleshooting)
+kubectl describe pod <pod-name>
+
+# Delete deployment and service
+kubectl delete -f k8s/deployment.yaml
+kubectl delete -f k8s/service.yaml
+
+# Stop Minikube
+minikube stop
+
+# Delete Minikube cluster
+minikube delete
+```
+
+## Docker Hub
+
+The Docker image is publicly available on Docker Hub:
+
+```bash
+# Pull the image
+docker pull khenchbishkhongorzul/ml-sentiment-analysis-api:latest
+
+# Run locally (without Kubernetes)
+docker run -p 8000:8000 khenchbishkhongorzul/ml-sentiment-analysis-api:latest
+```
+
+**Docker Hub Repository**: https://hub.docker.com/r/khenchbishkhongorzul/ml-sentiment-analysis-api
+
 ## Technologies Used
 
 - **FastAPI**: Modern web framework for building APIs
@@ -156,6 +267,8 @@ deactivate
 - **PyTorch**: Deep learning framework
 - **Uvicorn**: ASGI server for serving the API
 - **Docker**: Containerization platform
+- **Kubernetes**: Container orchestration platform
+- **Minikube**: Local Kubernetes environment
 
 ## Model Information
 
@@ -163,6 +276,19 @@ deactivate
 - **Task**: Binary sentiment classification (Positive/Negative)
 - **Model Size**: ~250MB
 - **Framework**: PyTorch + Transformers
+
+## Project Structure
+
+```
+.
+├── k8s/
+│   ├── deployment.yaml
+│   └── service.yaml
+├── Dockerfile
+├── requirements.txt
+├── main.py
+└── README.md
+```
 
 ## License
 
