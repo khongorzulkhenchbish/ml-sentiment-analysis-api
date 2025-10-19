@@ -76,7 +76,7 @@ jobs:
 
             - name: Commit and Push changes
               run: |
-                git add k8s/deployment.yml
+                git add k8s/deployment.yaml
                 # Check if there are changes to commit
                 if ! git diff --staged --quiet; then
                     git commit -m "[CI SKIP] Update deployment image to ${{ github.sha }}"
