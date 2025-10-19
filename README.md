@@ -1,108 +1,30 @@
 # Sentiment Analysis API
 
-A FastAPI-based REST API that performs sentiment analysis on text using a pre-trained DistilBERT model from Hugging Face.
+A FastAPI-based REST API that performs sentiment analysis on text using a pre-trained DistilBERT model from Hugging Face. This project demonstrates a complete MLOps workflow including containerization, Kubernetes deployment, and CI/CD automation.
 
 ## Description
 
 This project provides a simple, containerized inference service for sentiment analysis. It uses the `distilbert-base-uncased-finetuned-sst-2-english` model to classify text as either positive or negative sentiment with a confidence score.
 
-## Prerequisites
+## Table of Contents
 
-- **Docker**: Ensure Docker is installed on your system
-  - [Install Docker Desktop for Mac](https://docs.docker.com/desktop/install/mac-install/)
-  - [Install Docker Desktop for Windows](https://docs.docker.com/desktop/install/windows-install/)
-  - [Install Docker Engine for Linux](https://docs.docker.com/engine/install/)
+- [Local Development](#local-development)
+- [Docker Deployment](#docker-deployment)
+- [Kubernetes Deployment](#kubernetes-deployment)
+- [CI/CD Pipeline](#cicd-pipeline)
+- [API Usage](#api-usage)
+- [Technologies Used](#technologies-used)
 
-## How to Run
+---
 
-### 1. Build the Docker Image
+## Local Development
 
-```bash
-docker build -t ml-inference-api .
-```
+### Prerequisites
 
-This will create a Docker image named `ml-inference-api`. The first build may take 5-15 minutes as it downloads PyTorch and the transformer model.
+- Python 3.9+
+- pip
 
-### 2. Run the Docker Container
-
-```bash
-docker run -p 8000:8000 ml-inference-api
-```
-
-The API will be available at `http://localhost:8000`
-
-To run in detached mode (background):
-```bash
-docker run -d -p 8000:8000 ml-inference-api
-```
-
-## API Usage
-
-### Check API Status
-
-```bash
-curl http://localhost:8000
-```
-
-**Response:**
-```json
-{
-  "message": "Sentiment Analysis API is running!"
-}
-```
-
-### Predict Sentiment
-
-Send a POST request to the `/predict` endpoint with JSON containing the text to analyze:
-
-```bash
-curl -X POST "http://localhost:8000/predict" \
-  -H "Content-Type: application/json" \
-  -d '{"text": "I love this product! It is amazing!"}'
-```
-
-**Response:**
-```json
-{
-  "input_text": "I love this product! It is amazing!",
-  "prediction": {
-    "label": "POSITIVE",
-    "score": 0.9998
-  }
-}
-```
-
-### Example with Negative Sentiment
-
-```bash
-curl -X POST "http://localhost:8000/predict" \
-  -H "Content-Type: application/json" \
-  -d '{"text": "This is terrible and disappointing."}'
-```
-
-**Response:**
-```json
-{
-  "input_text": "This is terrible and disappointing.",
-  "prediction": {
-    "label": "NEGATIVE",
-    "score": 0.9995
-  }
-}
-```
-
-## Interactive API Documentation
-
-FastAPI automatically generates interactive API documentation. Once the server is running, visit:
-
-- **Swagger UI**: http://localhost:8000/docs
-- **ReDoc**: http://localhost:8000/redoc
-
-## Development
-
-### Local Development (without Docker)
-
-If you want to run the project locally for development:
+### Setup
 
 ```bash
 # Create a virtual environment
@@ -137,15 +59,53 @@ kill -9 PID
 deactivate
 ```
 
-## Project Structure
+---
 
+## Docker Deployment
+
+### Prerequisites
+
+- **Docker**: Ensure Docker is installed on your system
+  - [Install Docker Desktop for Mac](https://docs.docker.com/desktop/install/mac-install/)
+  - [Install Docker Desktop for Windows](https://docs.docker.com/desktop/install/windows-install/)
+  - [Install Docker Engine for Linux](https://docs.docker.com/engine/install/)
+
+### Build the Docker Image
+
+```bash
+docker build -t ml-inference-api .
 ```
-.
-├── Dockerfile
-├── requirements.txt
-├── main.py
-└── README.md
+
+This will create a Docker image named `ml-inference-api`. The first build may take 5-15 minutes as it downloads PyTorch and the transformer model.
+
+### Run the Docker Container
+
+```bash
+docker run -p 8000:8000 ml-inference-api
 ```
+
+The API will be available at `http://localhost:8000`
+
+To run in detached mode (background):
+```bash
+docker run -d -p 8000:8000 ml-inference-api
+```
+
+### Docker Hub
+
+The Docker image is publicly available on Docker Hub:
+
+```bash
+# Pull the image
+docker pull khenchbishkhongorzul/ml-sentiment-analysis-api:latest
+
+# Run locally (without Kubernetes)
+docker run -p 8000:8000 khenchbishkhongorzul/ml-sentiment-analysis-api:latest
+```
+
+**Docker Hub Repository**: https://hub.docker.com/r/khenchbishkhongorzul/ml-sentiment-analysis-api
+
+---
 
 ## Kubernetes Deployment
 
@@ -246,19 +206,179 @@ minikube stop
 minikube delete
 ```
 
-## Docker Hub
+---
 
-The Docker image is publicly available on Docker Hub:
+## CI/CD Pipeline
 
-```bash
-# Pull the image
-docker pull khenchbishkhongorzul/ml-sentiment-analysis-api:latest
+This project uses **GitHub Actions** to automate testing, building, and deployment using a **GitOps** approach.
 
-# Run locally (without Kubernetes)
-docker run -p 8000:8000 khenchbishkhongorzul/ml-sentiment-analysis-api:latest
+### Pipeline Overview
+
+The CI/CD pipeline consists of three jobs:
+
+1. **Test** - Runs unit tests on the code
+2. **Build and Push** - Builds Docker image and pushes to Docker Hub
+3. **Deploy** - Updates Kubernetes manifests with new image tag
+
+### Workflow File
+
+The pipeline is defined in `.github/workflows/ci-pipeline.yml`
+
+### How It Works (GitOps Pattern)
+
+1. **Code Change**: You push code changes to the `main` branch
+2. **Automated Testing**: GitHub Actions runs tests
+3. **Build Docker Image**: If tests pass, a new Docker image is built and tagged with:
+   - `latest` tag
+   - Commit SHA tag (e.g., `abc123def456...`)
+4. **Push to Docker Hub**: Both image tags are pushed to Docker Hub
+5. **Update Manifest**: The pipeline updates `k8s/deployment.yaml` with the new commit SHA tag
+6. **Commit Back**: The updated manifest is committed back to the repository
+7. **Local Pull**: You run `git pull` locally to get the updated manifest
+8. **Apply Changes**: Run `kubectl apply -f k8s/deployment.yaml` to deploy the new version
+
+### Setup GitHub Actions
+
+#### 1. Add Docker Hub Secrets
+
+Go to your GitHub repository → Settings → Secrets and variables → Actions → New repository secret
+
+Add two secrets:
+- `DOCKERHUB_USERNAME` - Your Docker Hub username
+- `DOCKERHUB_TOKEN` - Your Docker Hub access token (create at https://hub.docker.com/settings/security)
+
+#### 2. Enable Workflow Permissions
+
+The workflow needs write permissions to commit updated manifests back to the repository. This is already configured in the workflow file:
+
+```yaml
+permissions:
+  contents: write
 ```
 
-**Docker Hub Repository**: https://hub.docker.com/r/khenchbishkhongorzul/ml-sentiment-analysis-api
+### Testing the Full Pipeline
+
+1. **Make a code change** to `main.py`:
+   ```python
+   # Example: Change the welcome message
+   return {"message": "Sentiment Analysis API v2 is running!"}
+   ```
+
+2. **Commit and push**:
+   ```bash
+   git add .
+   git commit -m "Update welcome message"
+   git push
+   ```
+
+3. **Watch the pipeline**:
+   - Go to the **Actions** tab on GitHub
+   - You'll see the workflow running with three jobs: `test`, `build-and-push`, and `deploy`
+
+4. **Verify the commit**:
+   - After the pipeline finishes, check your **Commits** page
+   - You'll see a new commit from `github-actions[bot]` with message `[CI SKIP] Update image tag to <commit-sha>`
+   - Click the commit to see the changed `image:` line in `k8s/deployment.yaml`
+
+5. **Pull the changes locally**:
+   ```bash
+   git pull
+   ```
+
+6. **Apply to Kubernetes**:
+   ```bash
+   kubectl apply -f k8s/deployment.yaml
+   ```
+
+7. **Verify the update**:
+   - Kubernetes will perform a rolling update to the new image
+   - Test the API to see your changes:
+   ```bash
+   SERVICE_URL=$(minikube service sentiment-api-service --url)
+   curl $SERVICE_URL
+   ```
+
+### Pipeline Features
+
+✅ **Automated Testing** - Runs tests before building  
+✅ **Multi-tag Images** - Tags with both `latest` and commit SHA  
+✅ **GitOps Pattern** - Infrastructure as code with version control  
+✅ **CI Skip** - Prevents infinite loops with `[CI SKIP]` commit message  
+✅ **Secure** - Uses GitHub secrets for credentials  
+
+### Workflow Triggers
+
+The pipeline runs automatically on:
+- Push to `main` branch
+- Pull requests to `main` branch
+
+**Note**: Commits with `[CI SKIP]` or `[skip ci]` in the message won't trigger the workflow.
+
+---
+
+## API Usage
+
+### Check API Status
+
+```bash
+curl http://localhost:8000
+```
+
+**Response:**
+```json
+{
+  "message": "Sentiment Analysis API is running!"
+}
+```
+
+### Predict Sentiment
+
+Send a POST request to the `/predict` endpoint with JSON containing the text to analyze:
+
+```bash
+curl -X POST "http://localhost:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "I love this product! It is amazing!"}'
+```
+
+**Response:**
+```json
+{
+  "input_text": "I love this product! It is amazing!",
+  "prediction": {
+    "label": "POSITIVE",
+    "score": 0.9998
+  }
+}
+```
+
+### Example with Negative Sentiment
+
+```bash
+curl -X POST "http://localhost:8000/predict" \
+  -H "Content-Type: application/json" \
+  -d '{"text": "This is terrible and disappointing."}'
+```
+
+**Response:**
+```json
+{
+  "input_text": "This is terrible and disappointing.",
+  "prediction": {
+    "label": "NEGATIVE",
+    "score": 0.9995
+  }
+}
+```
+
+### Interactive API Documentation
+
+FastAPI automatically generates interactive API documentation. Once the server is running, visit:
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+---
 
 ## Technologies Used
 
@@ -269,6 +389,7 @@ docker run -p 8000:8000 khenchbishkhongorzul/ml-sentiment-analysis-api:latest
 - **Docker**: Containerization platform
 - **Kubernetes**: Container orchestration platform
 - **Minikube**: Local Kubernetes environment
+- **GitHub Actions**: CI/CD automation
 
 ## Model Information
 
@@ -281,6 +402,9 @@ docker run -p 8000:8000 khenchbishkhongorzul/ml-sentiment-analysis-api:latest
 
 ```
 .
+├── .github/
+│   └── workflows/
+│       └── ci-pipeline.yml
 ├── k8s/
 │   ├── deployment.yaml
 │   └── service.yaml
