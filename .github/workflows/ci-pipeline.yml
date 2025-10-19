@@ -50,5 +50,34 @@ jobs:
                 tags: |
                     ${{ env.IMAGE_NAME }}:latest
                     ${{ env.IMAGE_NAME }}:${{ github.sha }}
+    deploy:
+        needs: build-and-push
+        runs-on: ubuntu-latest
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v5
+
+            - name: Install kustomize
+              run: |
+                curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+                sudo mv kustomize /usr/local/bin/
+
+            - name: Update image tag with kustomize
+              run: |
+                cd k8s
+                kustomize edit set image IMAGE_NAME=${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}
+
+            - name: Configure git
+              run: |
+                git config --global user.name "github-actions[bot]"
+                git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+            - name: Commit and push changes
+              run: |
+                git add k8s/deployment.yaml
+                git commit -m "[CI SKIP] Update image tag to ${{ github.sha }}"
+                git push
+
 
 
