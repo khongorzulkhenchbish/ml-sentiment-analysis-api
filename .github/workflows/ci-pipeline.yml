@@ -13,18 +13,23 @@ jobs:
         steps:
             - name: Checkout repository
               uses: actions/checkout@v5
+            
+            - name: Set up Python
+              uses: actions/setup-python@v4
+              with:
+                python-version: '3.10'
 
             - name: Install project dependencies
-              uses: pip install -r requirements.txt
+              run: pip install -r requirements.txt # run for shell commands
 
             - name: Run Pytest
-              uses: pytest
+              run: pytest
     
     build-and-push:
         needs: test # only run this once test job is successful
         runs-on: ubuntu-latest
         env:
-            IMAGE_NAME: ${{ secrets.DOCKER_USERNAME }}/${{ github.event.repository.name }}
+            IMAGE_NAME: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}
 
         steps:
             - name: Checkout repository
