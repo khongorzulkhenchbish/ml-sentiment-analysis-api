@@ -67,7 +67,7 @@ jobs:
               # This command finds the line with "image:" in the deployment.yaml
               # and replaces the whole line with the new image tag.
               run: |
-                sed -i "s|image: .*|image: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}|g" ../k8s/deployment.yml
+                sed -i "s|image: .*|image: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}|g" k8s/deployment.yaml
 
             - name: Configure git
               run: |
