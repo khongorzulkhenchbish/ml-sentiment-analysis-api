@@ -28,7 +28,7 @@ jobs:
 
             - name: Run Pytest
               run: pytest
-    
+
     build-and-push:
         needs: test # only run this once test job is successful
         runs-on: ubuntu-latest
@@ -54,6 +54,7 @@ jobs:
                 tags: |
                     ${{ env.IMAGE_NAME }}:latest
                     ${{ env.IMAGE_NAME }}:${{ github.sha }}
+
     deploy:
         needs: build-and-push
         runs-on: ubuntu-latest
@@ -62,26 +63,28 @@ jobs:
             - name: Checkout repository
               uses: actions/checkout@v5
 
-            - name: Install kustomize
+            - name: Set new image tag
+              # This command finds the line with "image:" in the deployment.yaml
+              # and replaces the whole line with the new image tag.
               run: |
-                curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
-                sudo mv kustomize /usr/local/bin/
-
-            - name: Update image tag with kustomize
-              run: |
-                cd k8s
-                kustomize edit set image IMAGE_NAME=${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}
+                sed -i "s|image: .*|image: ${{ secrets.DOCKERHUB_USERNAME }}/${{ github.event.repository.name }}:${{ github.sha }}|g" ../k8s/deployment.yml
 
             - name: Configure git
               run: |
-                git config --global user.name "github-actions[bot]"
-                git config --global user.email "github-actions[bot]@users.noreply.github.com"
+                git config --global user.name "GitHub Actions Bot"
+                git config --global user.email "actions-bot@github.com"
 
-            - name: Commit and push changes
+            - name: Commit and Push changes
               run: |
-                git add k8s/kustomization.yaml
-                git commit -m "[CI SKIP] Update image tag to ${{ github.sha }}"
-                git push
+                git add k8s/deployment.yml
+                # Check if there are changes to commit
+                if ! git diff --staged --quiet; then
+                    git commit -m "[CI SKIP] Update deployment image to ${{ github.sha }}"
+                    git push
+                else
+                    echo "No changes to commit."
+                fi
+
 
 
 
