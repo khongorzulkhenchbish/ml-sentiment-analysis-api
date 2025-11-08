@@ -13,6 +13,6 @@ spec:
     spec:
       containers:
       - name: sentiment-api
-        image: khenchbishkhongorzul/ml-sentiment-analysis-api:38682b77ac3992141a4b98990a00b9c95343e4af
+        image: khenchbishkhongorzul/ml-sentiment-analysis-api:ec4d839ec618c9dd195dff8969e4b67849021836
         ports:
         - containerPort: 8000
