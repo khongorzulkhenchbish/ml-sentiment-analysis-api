@@ -1,0 +1,14 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sentiment-api-monitor
+  labels:
+    release: prometheus # tells the Prometheus operator to pick this resource
+spec:
+  selector:
+    matchLabels:
+      app: sentiment-api  # must match the label in service.yaml
+  endpoints:
+  - port: http   # must match the port name defined in service.yaml
+    interval: 15s # scrape interval
+    path: /metrics # endpoint to scrape metrics from

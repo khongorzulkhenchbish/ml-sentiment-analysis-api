@@ -2,11 +2,14 @@ apiVersion: v1
 kind: Service          # Must always be "Service"
 metadata:
   name: sentiment-api-service
+  labels:
+    app: sentiment-api    # Prometheus looks for services, not Deployments
 spec:
   type: NodePort       # Accessible from outside the cluster
   selector:
     app: sentiment-api
   ports:
   - protocol: TCP
+    name: http   # Name must match the one in ServiceMonitor
     port: 80
     targetPort: 8000

@@ -316,6 +316,283 @@ The pipeline runs automatically on:
 
 ---
 
+## Monitoring and Observability
+
+This project implements a full monitoring stack using **Prometheus** for metrics collection and **Grafana** for visualization, demonstrating production-ready observability practices.
+
+### Overview
+
+The monitoring setup includes:
+- **Metrics Instrumentation**: FastAPI app exposes Prometheus metrics at `/metrics`
+- **Prometheus**: Scrapes and stores metrics from the API
+- **Grafana**: Visualizes metrics through custom dashboards
+- **ServiceMonitor**: Kubernetes resource that configures Prometheus scraping
+
+### Architecture
+
+```
+FastAPI App (/metrics) → ServiceMonitor → Prometheus → Grafana Dashboard
+```
+
+### Prerequisites
+
+- **Helm**: Kubernetes package manager
+  - macOS: `brew install helm`
+  - Linux: `curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash`
+- Running Kubernetes cluster (Minikube)
+- Application deployed with metrics endpoint
+
+### Setup Monitoring Stack
+
+#### 1. Install Prometheus and Grafana
+
+Add the Prometheus Helm repository:
+```bash
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+helm repo update
+```
+
+Install the kube-prometheus-stack (includes Prometheus, Grafana, and Alertmanager):
+```bash
+helm install prometheus prometheus-community/kube-prometheus-stack \
+  --namespace monitoring \
+  --create-namespace
+```
+
+Verify installation:
+```bash
+# Watch pods being created
+kubectl get pods -n monitoring --watch
+
+# Check all resources
+kubectl get all -n monitoring
+```
+
+Wait until all pods show `Running` status.
+
+#### 2. Configure Prometheus to Scrape Your API
+
+Update your service to include a port name (required for ServiceMonitor):
+
+**k8s/service.yaml:**
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: sentiment-api-service
+  labels:
+    app: sentiment-api
+spec:
+  type: NodePort
+  selector:
+    app: sentiment-api
+  ports:
+  - name: http  # ← Port name is required
+    protocol: TCP
+    port: 80
+    targetPort: 8000
+```
+
+Apply the updated service:
+```bash
+kubectl apply -f k8s/service.yaml
+```
+
+Create a ServiceMonitor to tell Prometheus where to scrape:
+
+**k8s/servicemonitor.yaml:**
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sentiment-api-monitor
+  namespace: default
+  labels:
+    release: prometheus  # Critical: must match Prometheus release name
+spec:
+  selector:
+    matchLabels:
+      app: sentiment-api  # Must match service label
+  endpoints:
+  - port: http  # Must match service port name
+    path: /metrics
+    interval: 15s
+```
+
+Apply the ServiceMonitor:
+```bash
+kubectl apply -f k8s/servicemonitor.yaml
+```
+
+#### 3. Verify Metrics Collection
+
+Port-forward to Prometheus:
+```bash
+kubectl port-forward -n monitoring svc/prometheus-kube-prometheus-prometheus 9090:9090
+```
+
+Open http://localhost:9090 and:
+1. Go to **Status** → **Targets**
+2. Look for `serviceMonitor/default/sentiment-api-monitor/0`
+3. Verify endpoints show status "UP"
+
+Test a query in the **Graph** tab:
+```promql
+up{job="sentiment-api-monitor"}
+```
+
+Should return `1` if scraping is successful.
+
+### Access Grafana
+
+Port-forward to Grafana:
+```bash
+kubectl port-forward -n monitoring svc/prometheus-grafana 3000:80
+```
+
+Open http://localhost:3000
+
+**Default credentials:**
+- Username: `admin`
+- Password: `prom-operator`
+
+### Available Metrics
+
+The application exposes the following Prometheus metrics:
+
+| Metric | Description | Type |
+|--------|-------------|------|
+| `http_requests_total` | Total HTTP requests | Counter |
+| `http_request_duration_seconds` | Request latency distribution | Histogram |
+| `http_requests_inprogress` | Current requests being processed | Gauge |
+
+### Creating Dashboards
+
+#### Import Pre-built Dashboard
+
+If you have the exported dashboard JSON:
+
+1. In Grafana, go to **Dashboards** → **Import**
+2. Click **Upload JSON file**
+3. Select `grafana/sentiment-api-dashboard.json`
+4. Click **Import**
+
+#### Build Custom Dashboard
+
+Create a new dashboard with these key panels:
+
+**1. Request Rate (Requests per Second)**
+```promql
+sum(rate(http_requests_total[5m]))
+```
+
+**2. 95th Percentile Latency (milliseconds)**
+```promql
+histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le)) * 1000
+```
+
+**3. Error Rate (5xx responses per second)**
+```promql
+sum(rate(http_requests_total{status=~"5.."}[5m]))
+```
+
+**4. Success Rate (%)**
+```promql
+(sum(rate(http_requests_total{status=~"2.."}[5m])) / sum(rate(http_requests_total[5m]))) * 100
+```
+
+**5. Request Count by Endpoint**
+```promql
+sum by (handler) (rate(http_requests_total[5m]))
+```
+
+**6. Average Response Time (milliseconds)**
+```promql
+(sum(rate(http_request_duration_seconds_sum[5m])) / sum(rate(http_request_duration_seconds_count[5m]))) * 1000
+```
+
+### Generate Test Traffic
+
+To populate your dashboards with data:
+
+```bash
+# Get service URL
+SERVICE_URL=$(minikube service sentiment-api-service --url)
+
+# Send 100 test requests
+for i in {1..100}; do
+  curl -X POST "$SERVICE_URL/predict" \
+    -H "Content-Type: application/json" \
+    -d '{"text": "Test request '$i'"}' &
+done
+
+# Wait for all requests to complete
+wait
+```
+
+Refresh your Grafana dashboard to see the metrics!
+
+### Accessing Metrics Directly
+
+You can also access the raw metrics endpoint:
+
+```bash
+# Port-forward to your app
+kubectl port-forward <pod-name> 8000:8000
+
+# View metrics
+curl http://localhost:8000/metrics
+```
+
+Or through the Minikube service:
+```bash
+SERVICE_URL=$(minikube service sentiment-api-service --url)
+curl $SERVICE_URL/metrics
+```
+
+### Monitoring Best Practices
+
+✅ **Set up alerts**: Configure Alertmanager for critical metrics (high error rate, high latency)  
+✅ **Monitor continuously**: Check dashboards regularly during development  
+✅ **Establish baselines**: Know your normal request rates and latencies  
+✅ **Track trends**: Use longer time ranges (24h, 7d) to spot patterns  
+✅ **Document incidents**: Use annotations in Grafana to mark deployments and issues  
+
+### Troubleshooting
+
+**Prometheus not scraping:**
+- Verify ServiceMonitor has `release: prometheus` label
+- Check service has named port (`name: http`)
+- Confirm ServiceMonitor is in same namespace as app
+- Check Prometheus targets: http://localhost:9090/targets
+
+**No data in Grafana:**
+- Verify Prometheus is scraping (check targets)
+- Generate traffic to create metrics
+- Check data source in Grafana points to Prometheus
+- Verify PromQL queries match actual metric names
+
+**Grafana login issues:**
+- Default credentials: admin / prom-operator
+- Reset if needed: `kubectl get secret -n monitoring prometheus-grafana -o jsonpath="{.data.admin-password}" | base64 --decode`
+
+### Cleanup
+
+To remove the monitoring stack:
+
+```bash
+# Delete ServiceMonitor
+kubectl delete -f k8s/servicemonitor.yaml
+
+# Uninstall Prometheus/Grafana
+helm uninstall prometheus -n monitoring
+
+# Delete namespace
+kubectl delete namespace monitoring
+```
+
+---
+
 ## API Usage
 
 ### Check API Status
@@ -390,6 +667,9 @@ FastAPI automatically generates interactive API documentation. Once the server i
 - **Kubernetes**: Container orchestration platform
 - **Minikube**: Local Kubernetes environment
 - **GitHub Actions**: CI/CD automation
+- **Prometheus**: Metrics collection and monitoring
+- **Grafana**: Metrics visualization and dashboards
+- **Helm**: Kubernetes package manager
 
 ## Model Information
 
